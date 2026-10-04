@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作待辦備忘錄 (常用標籤與歷史完成紀錄)</title>
+    <!-- 引入 Sortable.js 用於滑鼠拖曳排序 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-color: #1f2937;
+            --border-color: #e5e7eb;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 650px;
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: var(--primary-color);
+        }
+
+        /* 歷史按鈕 */
+        .btn-history-toggle {
+            background-color: #e5e7eb;
+            color: #374151;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-history-toggle:hover {
+            background-color: #d1d5db;
+        }
+
+        /* 待辦清單區域 */
+        .list-container {
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        li {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid var(--border-color);
+            padding: 12px 14px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            gap: 10px;
+            cursor: grab;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            transition: transform 0.1s, box-shadow 0.2s;
+        }
+
+        li:active {
+            cursor: grabbing;
+        }
+
+        li.sortable-ghost {
+            opacity: 0.4;
+            background: #e5e7eb !important;
+        }
+
+        .task-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .task-content-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            overflow: hidden;
+            flex-wrap: wrap;
+        }
+
+        .task-category {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.08);
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .task-text {
+            word-break: break-all;
+        }
+
+        .actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .btn-complete {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-complete:hover {
+            background-color: #a7f3d0;
+        }
+
+        .btn-delete {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-delete:hover {
+            background-color: rgba(239, 68, 68, 0.2);
+        }
+
+        .empty-tip {
+            text-align: center;
+            color: #9ca3af;
+            padding: 20px 0;
+        }
+
+        .drag-handle {
+            color: rgba(0, 0, 0, 0.3);
+            font-size: 1.1rem;
+            cursor: grab;
+            user-select: none;
+        }
+
+        /* 輸入區塊 (位於下方) */
+        .input-section {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: #fafafa;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            border-top: 3px solid var(--primary-color);
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            padding: 10px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+            background: white;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+        }
+
+        #taskInput {
+            flex: 2;
+        }
+
+        .category-input-wrapper {
+            flex: 1.2;
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        #categoryInput {
+            width: 100%;
+        }
+
+        .btn-sm-action {
+            background-color: #e5e7eb;
+            color: #374151;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.2s;
+        }
+
+        .btn-sm-action:hover {
+            background-color: #d1d5db;
+        }
+
+        /* 顏色設定區塊 */
+        .color-settings {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .color-picker-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .color-label {
+            font-size: 0.9rem;
+            color: #4b5563;
+        }
+
+        input[type="color"] {
+            -webkit-appearance: none;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            background: none;
+        }
+
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+
+        input[type="color"]::-webkit-color-swatch {
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+        }
+
+        .preset-colors {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .preset-item {
+            position: relative;
+            display: inline-block;
+        }
+
+        .preset-btn {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: transform 0.1s, border-color 0.2s;
+        }
+
+        .preset-btn:hover {
+            transform: scale(1.15);
+        }
+
+        .preset-btn.active {
+            border-color: #1f2937;
+            transform: scale(1.15);
+        }
+
+        .preset-delete {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 14px;
+            height: 14px;
+            font-size: 10px;
+            line-height: 14px;
+            text-align: center;
+            cursor: pointer;
+            display: none;
+        }
+
+        .preset-item:hover .preset-delete {
+            display: block;
+        }
+
+        button.btn-add {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button.btn-add:hover {
+            opacity: 0.9;
+        }
+
+        /* 常用標籤列 */
+        .preset-tags-bar {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+            font-size: 0.85rem;
+        }
+
+        .tag-pill {
+            background: #e5e7eb;
+            color: #374151;
+            padding: 2px 8px;
+            border-radius: 12px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: background 0.2s;
+        }
+
+        .tag-pill:hover {
+            background: #d1d5db;
+        }
+
+        .tag-delete {
+            font-size: 10px;
+            color: #9ca3af;
+            cursor: pointer;
+        }
+        .tag-delete:hover {
+            color: #dc2626;
+        }
+
+        /* 歷史Modal/區塊樣式 */
+        .history-section {
+            display: none;
+            margin-top: 15px;
+            border-top: 2px dashed var(--border-color);
+            padding-top: 15px;
+        }
+
+        .history-section.active {
+            display: block;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .history-header h3 {
+            margin: 0;
+            font-size: 1.1rem;
+            color: #4b5563;
+        }
+
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f9fafb;
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .history-meta {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .history-date {
+            color: #6b7280;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-bar">
+        <h1>📋 工作待辦清單</h1>
+        <button class="btn-history-toggle" onclick="toggleHistoryView()" id="historyToggleBtn">查看歷史完成 (0)</button>
+    </div>
+    
+    <!-- 清單顯示區 -->
+    <div class="list-container">
+        <ul id="taskList"></ul>
+        <div id="emptyTip" class="empty-tip">目前沒有任何工作，請在下方新增！</div>
+    </div>
+
+    <!-- 歷史完成清單區塊 (預設隱藏) -->
+    <div class="history-section" id="historySection">
+        <div class="history-header">
+            <h3>📜 歷史完成紀錄</h3>
+            <button class="btn-sm-action" onclick="clearHistory()">清空歷史</button>
+        </div>
+        <div id="historyListContainer">
+            <div class="empty-tip" style="padding: 10px 0;">尚無已完成的歷史紀錄</div>
+        </div>
+    </div>
+
+    <!-- 輸入區塊 (位於下方) -->
+    <div class="input-section">
+        <div class="input-row">
+            <input type="text" id="taskInput" placeholder="輸入新工作內容..." onkeypress="handleKeyPress(event)">
+            
+            <div class="category-input-wrapper">
+                <input type="text" id="categoryInput" placeholder="分組標籤" onkeypress="handleKeyPress(event)">
+                <button class="btn-sm-action" onclick="addPresetTag()" title="將目前輸入的分組加入常用標籤">＋常用</button>
+            </div>
+
+            <button class="btn-add" onclick="addTask()">新增工作</button>
+        </div>
+
+        <!-- 常用標籤快捷列 -->
+        <div class="preset-tags-bar" id="presetTagsBar">
+            <span class="color-label">常用標籤：</span>
+        </div>
+        
+        <div class="color-settings">
+            <!-- 常用顏色快捷列 -->
+            <div class="preset-colors" id="presetContainer">
+                <span class="color-label">常用色：</span>
+            </div>
+
+            <!-- 自訂顏色選擇與加入常用色 -->
+            <div class="color-picker-group">
+                <span class="color-label">自訂色：</span>
+                <input type="color" id="colorPicker" value="#eff6ff" oninput="selectCustomColor(this.value)">
+                <button class="btn-sm-action" onclick="addPresetColor()" title="將目前自訂顏色加入常用色">＋常用色</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+    let historyTasks = JSON.parse(localStorage.getItem('historyTasks')) || [];
+    
+    let presetColors = JSON.parse(localStorage.getItem('presetColors')) || [
+        '#eff6ff', '#fef2f2', '#ecfdf5', '#fffbeb', '#f5f3ff'
+    ];
+
+    let presetTags = JSON.parse(localStorage.getItem('presetTags')) || [
+        '拍攝', '修圖', '會議', '設計'
+    ];
+
+    let selectedColor = presetColors[0] || '#eff6ff';
+
+    // --- 標籤相關函式 ---
+    function renderPresetTags() {
+        const bar = document.getElementById('presetTagsBar');
+        bar.innerHTML = '<span class="color-label">常用標籤：</span>';
+
+        if (presetTags.length === 0) {
+            const emptyHint = document.createElement('span');
+            emptyHint.style.fontSize = '0.8rem';
+            emptyHint.style.color = '#9ca3af';
+            emptyHint.innerText = '（尚無常用標籤）';
+            bar.appendChild(emptyHint);
+            return;
+        }
+
+        presetTags.forEach((tag, index) => {
+            const pill = document.createElement('span');
+            pill.className = 'tag-pill';
+            pill.innerHTML = `<span>${escapeHtml(tag)}</span><span class="tag-delete" title="刪除" onclick="event.stopPropagation(); removePresetTag(${index})">×</span>`;
+            pill.onclick = () => {
+                document.getElementById('categoryInput').value = tag;
+            };
+            bar.appendChild(pill);
+        });
+
+        localStorage.setItem('presetTags', JSON.stringify(presetTags));
+    }
+
+    function addPresetTag() {
+        const tagInput = document.getElementById('categoryInput');
+        const val = tagInput.value.trim();
+        if (val && !presetTags.includes(val)) {
+            presetTags.push(val);
+            renderPresetTags();
+        }
+    }
+
+    function removePresetTag(index) {
+        presetTags.splice(index, 1);
+        renderPresetTags();
+    }
+
+    // --- 顏色相關函式 ---
+    function renderPresets() {
+        const container = document.getElementById('presetContainer');
+        container.innerHTML = '<span class="color-label">常用色：</span>';
+
+        if (presetColors.length === 0) {
+            return;
+        }
+
+        presetColors.forEach((color, index) => {
+            const item = document.createElement('div');
+            item.className = 'preset-item';
+
+            const btn = document.createElement('div');
+            btn.className = `preset-btn ${selectedColor === color ? 'active' : ''}`;
+            btn.style.backgroundColor = color;
+            btn.onclick = () => selectPreset(color);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'preset-delete';
+            deleteBtn.innerHTML = '×';
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                removePresetColor(index);
+            };
+
+            item.appendChild(btn);
+            item.appendChild(deleteBtn);
+            container.appendChild(item);
+        });
+
+        localStorage.setItem('presetColors', JSON.stringify(presetColors));
+    }
+
+    function selectPreset(color) {
+        selectedColor = color;
+        document.getElementById('colorPicker').value = color;
+        renderPresets();
+    }
+
+    function selectCustomColor(color) {
+        selectedColor = color;
+        renderPresets();
+    }
+
+    function addPresetColor() {
+        const color = document.getElementById('colorPicker').value;
+        if (!presetColors.includes(color)) {
+            presetColors.push(color);
+            renderPresets();
+        }
+        selectedColor = color;
+    }
+
+    function removePresetColor(index) {
+        presetColors.splice(index, 1);
+        if (presetColors.length > 0 && !presetColors.includes(selectedColor)) {
+            selectedColor = presetColors[0];
+            document.getElementById('colorPicker').value = selectedColor;
+        }
+        renderPresets();
+    }
+
+    // --- 待辦與歷史清單相關函式 ---
+    function renderTasks() {
+        const taskList = document.getElementById('taskList');
+        const emptyTip = document.getElementById('emptyTip');
+        taskList.innerHTML = '';
+
+        if (tasks.length === 0) {
+            emptyTip.style.display = 'block';
+            return;
+        } else {
+            emptyTip.style.display = 'none';
+        }
+
+        tasks.forEach((task, index) => {
+            const li = document.createElement('li');
+            li.style.backgroundColor = task.color || '#eff6ff';
+
+            const categoryHtml = task.category 
+                ? `<span class="task-category">${escapeHtml(task.category)}</span>` 
+                : '';
+
+            li.innerHTML = `
+                <div class="task-info">
+                    <span class="drag-handle" title="按住拖曳排序">☰</span>
+                    <div class="task-content-wrapper">
+                        ${categoryHtml}
+                        <span class="task-text">${escapeHtml(task.text)}</span>
+                    </div>
+                </div>
+                <div class="actions">
+                    <button class="btn-complete" onclick="completeTask(${index})">完成</button>
+                    <button class="btn-delete" onclick="deleteTask(${index})">刪除</button>
+                </div>
+            `;
+            taskList.appendChild(li);
+        });
+
+        localStorage.setItem('tasks', JSON.stringify(tasks));
+        updateHistoryToggleBtn();
+    }
+
+    function renderHistory() {
+        const container = document.getElementById('historyListContainer');
+        container.innerHTML = '';
+
+        if (historyTasks.length === 0) {
+            container.innerHTML = '<div class="empty-tip" style="padding: 10px 0;">尚無已完成的歷史紀錄</div>';
+            return;
+        }
+
+        historyTasks.forEach((item, index) => {
+            const div = document.createElement('div');
+            div.className = 'history-item';
+            div.style.borderLeft = `4px solid ${item.color || '#4f46e5'}`;
+
+            const categoryHtml = item.category 
+                ? `<span class="task-category">${escapeHtml(item.category)}</span>` 
+                : '';
+
+            div.innerHTML = `
+                <div class="history-meta">
+                    ${categoryHtml}
+                    <span style="text-decoration: line-through; color: #4b5563;">${escapeHtml(item.text)}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span class="history-date">${item.completedDate}</span>
+                    <button class="btn-delete" style="padding: 2px 6px; font-size: 0.75rem;" onclick="deleteHistory(${index})">刪除</button>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+
+        localStorage.setItem('historyTasks', JSON.stringify(historyTasks));
+        updateHistoryToggleBtn();
+    }
+
+    function addTask() {
+        const input = document.getElementById('taskInput');
+        const categoryInput = document.getElementById('categoryInput');
+        const text = input.value.trim();
+        const category = categoryInput.value.trim();
+
+        if (!text) return;
+
+        tasks.push({ 
+            text: text, 
+            category: category, 
+            color: selectedColor 
+        });
+        
+        input.value = '';
+        categoryInput.value = '';
+        renderTasks();
+    }
+
+    function handleKeyPress(event) {
+        if (event.key === 'Enter') {
+            addTask();
+        }
+    }
+
+    function completeTask(index) {
+        const completedTask = tasks.splice(index, 1)[0];
+        
+        // 取得當前日期時間（格式：YYYY/MM/DD HH:mm）
+        const now = new Date();
+        const dateStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        
+        completedTask.completedDate = dateStr;
+        historyTasks.unshift(completedTask); // 加到歷史清單最上方
+
+        renderTasks();
+        renderHistory();
+    }
+
+    function deleteTask(index) {
+        tasks.splice(index, 1);
+        renderTasks();
+    }
+
+    function deleteHistory(index) {
+        historyTasks.splice(index, 1);
+        renderHistory();
+    }
+
+    function clearHistory() {
+        if (confirm('確定要清空所有歷史紀錄嗎？')) {
+            historyTasks = [];
+            renderHistory();
+        }
+    }
+
+    function toggleHistoryView() {
+        const section = document.getElementById('historySection');
+        section.classList.toggle('active');
+    }
+
+    function updateHistoryToggleBtn() {
+        const btn = document.getElementById('historyToggleBtn');
+        btn.innerText = `查看歷史完成 (${historyTasks.length})`;
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', () => {
+        renderPresets();
+        renderPresetTags();
+        renderTasks();
+        renderHistory();
+
+        const taskList = document.getElementById('taskList');
+        Sortable.create(taskList, {
+            animation: 150,
+            handle: '.task-info', 
+            onEnd: function (evt) {
+                const movedItem = tasks.splice(evt.oldIndex, 1)[0];
+                tasks.splice(evt.newIndex, 0, movedItem);
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+                renderTasks();
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
